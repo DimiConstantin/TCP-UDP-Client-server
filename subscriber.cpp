@@ -43,38 +43,37 @@ void subscriber(int sockfd)
 
             size_t len = strlen(line);
             line[len - 1] = '\0';
-            // std::cout << "Received command: " << line << '\n';
 
-            cmd = strtok(line, " ");
+            cmd = strtok(line, " \n");
             DIE(!cmd, "strtok failed");
 
             if (strcmp(cmd, "exit") == 0)
             {
                 // send exit message to server
-                // std::cout << "Exiting...\n";
-                // send_tcp_msg(sockfd, TCP_MSG_EXIT, NULL, 0);
+                send_tcp_msg(sockfd, TCP_MSG_EXIT, NULL, 0);
                 break;
             }
             else if (strcmp(cmd, "subscribe") == 0)
             {
                 arg = strtok(NULL, " ");
-                std::cout << "Subscribing to topic: " << arg << '\n';
                 send_tcp_msg(sockfd, TCP_MSG_SUBSCRIBE, (const uint8_t *)arg, strlen(arg));
+                std::cout << "Subscribed to topic " << arg << std::endl;
             }
             else if (strcmp(cmd, "unsubscribe") == 0)
             {
                 arg = strtok(NULL, " ");
-                std::cout << "Unsubscribing from topic: " << arg << '\n';
                 send_tcp_msg(sockfd, TCP_MSG_UNSUBSCRIBE, (const uint8_t *)arg, strlen(arg));
-            }
-            else
-            {
-                std::cout << "Unknown command: " << cmd << '\n';
+                std::cout << "Unsubscribed from topic: " << arg << std::endl;
             }
         }
         if (pfds[1].revents & POLLIN)
         {
             // read message from server
+            tcp_msg_t msg;
+            rc = recv_tcp_msg(sockfd, &msg);
+            if (rc <= 0)
+                break;
+            std::cout << msg.payload << std::endl;
         }
 
     }
@@ -92,10 +91,10 @@ void subscriber(int sockfd)
         // deactivate stdout buffering
         setvbuf(stdout, NULL, _IONBF, BUFSIZ);
 
+
         // read arguments
         char *id_client = argv[1];
         id_client[strlen(id_client)] = '\0';
-        // std::cout << "Client ID: " << id_client << "of lenght " << strlen(id_client) << '\n';
 
         const char *ip_server = argv[2];
 
@@ -107,7 +106,6 @@ void subscriber(int sockfd)
         DIE(sockfd < 0, "TCP socket");
 
         // set up the server address structure
-        // Prepare server address
         struct sockaddr_in serv_addr;
         memset(&serv_addr, 0, sizeof(serv_addr));
         serv_addr.sin_family = AF_INET;
@@ -120,7 +118,7 @@ void subscriber(int sockfd)
 
         // disable Nagle algorithm
         int flag = 1;
-        setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY | SO_REUSEADDR, (char *)&flag, sizeof(int));
+        setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int));
 
         // send ID_CLIENT to server using tcp message
 
