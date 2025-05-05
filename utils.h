@@ -15,11 +15,18 @@
 		}							\
 	} while (0)
 
+#define UDP_PKT_SIZE 1551
+
+#define INT 0
+#define SHORT_REAL 1
+#define FLOAT 2
+#define STRING 3
+
 struct __attribute__((packed)) topic_t 
 {
-    char topic[51];
+    char topic[50];
     uint8_t type;
-    char payload[1501];
+    char payload[1500];
 };
 
 struct client_t
@@ -29,4 +36,5 @@ struct client_t
 	int tcp_port;
 	bool is_connected;
 	std::unordered_set<std::string> topics;
+	std::vector<std::vector<std::string>> patterns;
 };
