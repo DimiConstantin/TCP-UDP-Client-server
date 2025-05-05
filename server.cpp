@@ -284,10 +284,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    std::ios::sync_with_stdio(true);
-    // fiecare << pe cout face și flush automat
-    std::cout.setf(std::ios::unitbuf);
-
     // deactivate stdout buffering
     setvbuf(stdout, NULL, _IONBF, BUFSIZ);
 
