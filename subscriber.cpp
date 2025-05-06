@@ -18,6 +18,7 @@
 
 void subscriber(int sockfd)
 {
+    // setting up the poll
     struct pollfd pfds[2];
     pfds[0].fd = STDIN_FILENO;
     pfds[0].events = POLLIN;
@@ -28,7 +29,7 @@ void subscriber(int sockfd)
     char *cmd;
     char *arg;
 
-    // read messages from server
+    // read messages from server or STDIN
     while (true)
     {
         int rc = poll(pfds, 2, -1);
@@ -36,6 +37,7 @@ void subscriber(int sockfd)
 
         if (pfds[0].revents & POLLIN)
         {
+            // we received input from the command line
             if (!fgets(line, sizeof(line), stdin))
             {
                 break;
@@ -68,7 +70,7 @@ void subscriber(int sockfd)
         }
         if (pfds[1].revents & POLLIN)
         {
-            // read message from server
+            // we received a message from the server
             tcp_msg_t msg;
             rc = recv_tcp_msg(sockfd, &msg);
             if (rc <= 0)
@@ -120,11 +122,11 @@ void subscriber(int sockfd)
         int flag = 1;
         setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag, sizeof(int));
 
-        // send ID_CLIENT to server using tcp message
-
+        // send the id to the server
         rc = send_tcp_msg(sockfd, TCP_MSG_INIT_ID, (const uint8_t *)id_client, strlen(id_client));
         DIE(rc < 0, "send ID");
 
+        // subscriber loop
         subscriber(sockfd);
 
         close(sockfd);
