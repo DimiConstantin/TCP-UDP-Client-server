@@ -27,12 +27,15 @@ void notify_subscribers(const char *topic_name, const char *response, size_t res
     std::string topic(topic_name);
     std::unordered_set<std::string> notified;
 
+    // we iterate through the existing topics
     for (const auto &entry : topic_to_client_ids) {
         const std::string &pattern = entry.first;
         const auto &client_ids = entry.second;
 
         // check if the topic matches the pattern
         if (match_topic(topic_name, pattern)) {
+
+            // if it does, we notify the connected clients
             for (const auto &client_id : client_ids) {
 
                 // check if the client is already notified
@@ -84,6 +87,7 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
                     int rc = setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
                     DIE(rc < 0, "setsockopt");
 
+                    // the client sent a packet containing his ID
                     tcp_msg_t msg;
                     rc = recv_tcp_msg(client_fd, &msg);
                     DIE(rc < 0, "recv");
@@ -98,6 +102,7 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
                     client.is_connected = true;
                     client.tcp_port = ntohs(client_addr.sin_port);
 
+                    // if he is already up, we refuse the connection
                     auto it = id_to_client.find(client_id);
                     if (it != id_to_client.end() && it->second.is_connected)
                     {
@@ -106,6 +111,7 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
                         continue;
                     }
 
+                    // else, we add the entry to the server database and to the poll vector
                     pfds.push_back({client_fd, POLLIN, 0});
                     fd_to_client[client_fd] = client;
                     id_to_client[client_id] = client;
@@ -126,9 +132,12 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
                     topic_t *topic = (topic_t *)buffer;
                     char *topic_name = topic->topic;
                     unsigned int topic_type = (unsigned int)topic->type;
+                    
                     char response[UDP_PKT_SIZE];
                     memset(response, 0, sizeof(response));
                     size_t response_len;
+
+                    // we check the topic type and we process the response packet
                     switch (topic_type)
                     {
                     case INT:
@@ -192,6 +201,8 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
 
                     response_len = strlen(response);
                     response[response_len] = '\0';
+
+                    // we send the response to all the subscribed clients
                     notify_subscribers(topic_name, response, response_len, id_to_client, topic_to_client_ids);
                 }
                 else if (pfds[i].fd == STDIN_FILENO)
@@ -200,6 +211,7 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
                     char buffer[1024];
                     fgets(buffer, sizeof(buffer), stdin);
 
+                    // if the input is "exit", we clean up and shut down the server
                     if (strncmp(buffer, "exit", 4) == 0)
                     {
                         for (auto &entry : pfds)
@@ -231,6 +243,8 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
                     //     continue;
                     // }
                     client_t &client = fd_to_client[client_fd];
+
+                    // checking the request type sent by the client
                     switch (packet.type)
                     {
                     case TCP_MSG_SUBSCRIBE:
@@ -239,10 +253,11 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
                         std::string topic;
                         size_t len = ntohs(packet.len) - 1;
                         topic.assign((char *)packet.payload, len);
+
+                        // adding the client to the topic subscriptions
                         client.topics.insert(topic);
                         topic_to_client_ids[topic].insert(client.id);
                         id_to_client[client.id].topics.insert(topic);
-                        client.patterns.push_back(split_topic(topic));
                         break;
                     }
                     case TCP_MSG_UNSUBSCRIBE:
@@ -251,6 +266,8 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
                         std::string topic;
                         size_t len = ntohs(packet.len) - 1;
                         topic.assign((char *)packet.payload, len);
+
+                        // deleting the client from the topic subscriptions
                         client.topics.erase(topic);
                         topic_to_client_ids[topic].erase(client.id);
                         id_to_client[client.id].topics.erase(topic);
@@ -260,8 +277,12 @@ void run_server(int tcp_socket_fd, int udp_socket_fd, std::unordered_map<std::st
                     {
                         // handle exit message
                         std::cout << "Client " << client.id << " disconnected." << std::endl;
+
+                        // updating the client state
                         client.is_connected = false;
                         id_to_client[client.id].is_connected = false;
+
+                        // closing the connection and removing the client fd from the poll vector
                         close(client_fd);
                         pfds.erase(pfds.begin() + i);
                         break;
@@ -323,9 +344,10 @@ int main(int argc, char *argv[])
 
     listen(tcp_socket_fd, MAXCONN);
 
+    // server loop
     run_server(tcp_socket_fd, udp_socket_fd, id_to_client, fd_to_client, topic_to_client_ids);
 
-    // close sockets
+    // close remaining sockets
     rc = close(tcp_socket_fd);
     DIE(rc < 0, "close tcp socket");
 
