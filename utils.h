@@ -17,6 +17,7 @@
 
 #define UDP_PKT_SIZE 1551
 
+// request types
 #define INT 0
 #define SHORT_REAL 1
 #define FLOAT 2
@@ -29,6 +30,7 @@ struct __attribute__((packed)) topic_t
     char payload[1500];
 };
 
+// client entry
 struct client_t
 {
 	std::string id;
